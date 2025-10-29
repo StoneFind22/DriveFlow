@@ -3,8 +3,8 @@
 # Capa de IU (ViewModel).
 # Intermediario entre la Vista y los Casos de Uso.
 
-import tkinter as tk # Importado solo para tk.TclError
-from typing import List, Optional, Callable
+import tkinter as tk  # Importado solo para tk.TclError
+from typing import List, Optional, Callable, Tuple
 from src.domain.models.cliente import Cliente
 from src.domain.usecases.cliente_usecases import (
     ObtenerClientesUseCase,
@@ -13,6 +13,7 @@ from src.domain.usecases.cliente_usecases import (
     ValidarClienteUseCase,
     BuscarClientesUseCase
 )
+
 
 class ClienteViewModel:
     def __init__(
@@ -34,23 +35,23 @@ class ClienteViewModel:
         self.cliente_seleccionado: Optional[Cliente] = None
         
         # Lista de observadores (callbacks de la vista)
-        self._observers: List[Callable] = []
+        self._observers: List[Callable[[], None]] = []
 
-    def bind_to_updates(self, callback: Callable):
+    def bind_to_updates(self, callback: Callable[[], None]) -> None:
         """
         La Vista se suscribe a las actualizaciones.
         """
         if callback not in self._observers:
             self._observers.append(callback)
     
-    def remove_observer(self, callback: Callable):
+    def remove_observer(self, callback: Callable[[], None]) -> None:
         """
         La Vista se da de baja de las actualizaciones.
         """
         if callback in self._observers:
             self._observers.remove(callback)
 
-    def _notify_observers(self):
+    def _notify_observers(self) -> None:
         """
         Notifica a todas las vistas suscritas que el estado ha cambiado.
         """
@@ -64,8 +65,7 @@ class ClienteViewModel:
                 if callback in self._observers:
                     self._observers.remove(callback)
 
-
-    def cargar_clientes(self):
+    def cargar_clientes(self) -> None:
         """
         Carga la lista de clientes desde el repositorio.
         """
@@ -76,7 +76,7 @@ class ClienteViewModel:
             # Manejo de error (ej. loggear, mostrar mensaje)
             print(f"Error al cargar clientes: {e}")
 
-    def buscar_clientes(self, termino: str):
+    def buscar_clientes(self, termino: str) -> None:
         """
         Busca clientes según un término de búsqueda.
         """
@@ -86,7 +86,7 @@ class ClienteViewModel:
         except Exception as e:
             print(f"Error al buscar clientes: {e}")
 
-    def seleccionar_cliente(self, cliente: Optional[Cliente]):
+    def seleccionar_cliente(self, cliente: Optional[Cliente]) -> None:
         """
         Establece el cliente seleccionado (para el formulario).
         """
@@ -104,20 +104,27 @@ class ClienteViewModel:
         email: str,
         direccion: str,
         distrito: str
-    ) -> bool:
+    ) -> Tuple[bool, str]:
         """
         Guarda (crea o actualiza) un cliente.
+        Retorna: (éxito: bool, mensaje: str)
         """
         cliente_data = {
-            'id': id, 'nombre': nombre, 'apellido': apellido, 'dni': dni,
-            'licencia': licencia, 'telefono': telefono, 'email': email,
-            'direccion': direccion, 'distrito': distrito
+            'id': id,
+            'nombre': nombre,
+            'apellido': apellido,
+            'dni': dni,
+            'licencia': licencia,
+            'telefono': telefono,
+            'email': email,
+            'direccion': direccion,
+            'distrito': distrito
         }
         
         # 1. Validación
         is_valid, error_message = self.validar_cliente_usecase.execute(cliente_data)
         if not is_valid:
-            return False, error_message  # Devuelve Falso y el mensaje de error
+            return False, error_message  # Devuelve False y el mensaje de error
 
         # 2. Creación del modelo
         cliente = Cliente(**cliente_data)
@@ -126,12 +133,12 @@ class ClienteViewModel:
         try:
             success = self.guardar_cliente_usecase.execute(cliente)
             if success:
-                self.cargar_clientes()  # Recargar la lista
+                self.cargar_clientes()
             return success, "Cliente guardado exitosamente."
         except Exception as e:
             return False, f"Error al guardar: {e}"
 
-    def eliminar_cliente(self, id: int) -> bool:
+    def eliminar_cliente(self, id: Optional[int]) -> bool:
         """
         Elimina un cliente.
         """
@@ -149,4 +156,3 @@ class ClienteViewModel:
         except Exception as e:
             print(f"Error al eliminar cliente: {e}")
             return False
-
