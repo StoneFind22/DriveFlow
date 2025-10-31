@@ -1,29 +1,20 @@
 # src/ui/views/cliente_view.py
-#
-# Capa de IU (Vista).
-# Contiene solo la lógica de la UI (Tkinter).
 
 import tkinter as tk
 from tkinter import ttk, messagebox
 from typing import Optional
 from src.domain.models.cliente import Cliente
 from src.ui.viewmodels.cliente_viewmodel import ClienteViewModel
-from src.ui.theme import PALETTE # <-- IMPORTAR PALETA
+# ¡LA IMPORTACIÓN CIRCULAR HA SIDO ELIMINADA DE AQUÍ!
 
-class ClienteView:
+class ClienteView(ttk.Frame): # <-- CORREGIDO: Heredar de ttk.Frame
     def __init__(self, master: tk.Toplevel, view_model: ClienteViewModel):
-        self.window = master
+        
+        # 'master' es el Toplevel, nosotros somos un Frame dentro de él
+        super().__init__(master, style="TFrame") 
+        
+        self.master = master # Guardar referencia al Toplevel
         self.view_model = view_model
-        
-        self.window.title("Gestión de Clientes")
-        self.window.geometry("900x600")
-        self.window.configure(bg=PALETTE["bg"]) # <-- APLICAR FONDO
-        self.window.transient(master.master)
-        self.window.grab_set()
-        
-        # Configurar grid para que la ventana se expanda
-        self.window.columnconfigure(0, weight=1)
-        self.window.rowconfigure(0, weight=1)
         
         # Variables de control
         self.selected_id: Optional[int] = None
@@ -46,19 +37,24 @@ class ClienteView:
             "Marco", "Masma", "Masma Chicche", "Mito", "Orcotuna", "Santa Rosa de Ocopa"
         ]
         
+        # Configurar grid del Frame principal (self)
+        self.columnconfigure(0, weight=1)
+        self.rowconfigure(0, weight=1)
+        
         self._create_widgets()
         
         # Suscribirse a las actualizaciones del ViewModel
         self.view_model.bind_to_updates(self.update_view)
         
         # Manejar el cierre de la ventana
-        self.window.protocol("WM_DELETE_WINDOW", self.on_close)
+        self.bind("<Destroy>", self.on_destroy)
         
         # Carga inicial de datos
         self.view_model.cargar_clientes()
         
     def _create_widgets(self):
-        main_frame = ttk.Frame(self.window, padding="10")
+        # 'self' es el Frame principal ahora
+        main_frame = ttk.Frame(self, padding="10", style="TFrame")
         main_frame.grid(row=0, column=0, sticky="nsew")
         main_frame.columnconfigure(1, weight=1)
         main_frame.rowconfigure(1, weight=1)
@@ -67,7 +63,7 @@ class ClienteView:
         form_frame = ttk.LabelFrame(main_frame, text="Datos del Cliente", padding="10")
         form_frame.grid(row=1, column=0, sticky="ns", padx=(0,10))
         
-        form_grid = ttk.Frame(form_frame)
+        form_grid = ttk.Frame(form_frame, style="TFrame")
         form_grid.pack(fill="x")
         
         ttk.Label(form_grid, text="Nombre:").grid(row=0, column=0, sticky="w", pady=5)
@@ -95,10 +91,9 @@ class ClienteView:
         self.distrito_combo = ttk.Combobox(form_grid, textvariable=self.distrito_var, width=28, state="normal")
         self.distrito_combo['values'] = self.distritos
         self.distrito_combo.grid(row=7, column=1, pady=5, padx=5)
-        # TODO: Re-implementar autocompletado si es necesario
         
         # Botones del Formulario
-        button_frame = ttk.Frame(form_frame)
+        button_frame = ttk.Frame(form_frame, style="TFrame")
         button_frame.pack(fill="x", pady=20)
         
         ttk.Button(button_frame, text="Guardar", command=self.on_save).pack(side="left", padx=5, expand=True, fill="x")
@@ -112,7 +107,7 @@ class ClienteView:
         list_frame.rowconfigure(1, weight=1)
         
         # Búsqueda
-        search_frame = ttk.Frame(list_frame)
+        search_frame = ttk.Frame(list_frame, style="TFrame")
         search_frame.grid(row=0, column=0, sticky="ew", pady=(0,10))
         search_frame.columnconfigure(1, weight=1)
         
@@ -160,23 +155,21 @@ class ClienteView:
         )
         
         if success:
-            messagebox.showinfo("Éxito", message)
-            self.on_clear()
+            messagebox.showinfo("Éxito", message, parent=self.master)
         else:
-            messagebox.showerror("Error de Validación", message)
+            messagebox.showerror("Error de Validación", message, parent=self.master)
 
     def on_delete(self):
         if not self.selected_id:
-            messagebox.showwarning("Advertencia", "Seleccione un cliente para eliminar.")
+            messagebox.showwarning("Advertencia", "Seleccione un cliente para eliminar.", parent=self.master)
             return
         
-        if messagebox.askyesno("Confirmar", "¿Está seguro de eliminar este cliente?"):
+        if messagebox.askyesno("Confirmar", "¿Está seguro de eliminar este cliente?", parent=self.master):
             success = self.view_model.eliminar_cliente(self.selected_id)
             if success:
-                messagebox.showinfo("Éxito", "Cliente eliminado correctamente.")
+                messagebox.showinfo("Éxito", "Cliente eliminado correctamente.", parent=self.master)
             else:
-                messagebox.showerror("Error", "No se pudo eliminar el cliente.")
-            self.on_clear()
+                messagebox.showerror("Error", "No se pudo eliminar el cliente.", parent=self.master)
 
     def on_clear(self):
         self.view_model.seleccionar_cliente(None)
@@ -191,19 +184,21 @@ class ClienteView:
             item = self.tree.item(selection[0])
             selected_id = int(item['values'][0])
             
-            # Buscar el objeto Cliente completo en el estado del ViewModel
             cliente_obj = next((c for c in self.view_model.clientes if c.id == selected_id), None)
             if cliente_obj:
                 self.view_model.seleccionar_cliente(cliente_obj)
         
-    def on_close(self):
+    def on_destroy(self, event):
         """
-        Maneja el cierre de la ventana Toplevel.
+        Maneja el cierre de la ventana Toplevel (evento <Destroy>).
         """
-        # Darse de baja del viewmodel
-        self.view_model.remove_observer(self.update_view)
-        # Destruir la ventana
-        self.window.destroy()
+        if event.widget == self:
+            print("ClienteView destruida, dándose de baja.")
+            if self.view_model:
+                try:
+                    self.view_model.remove_observer(self.update_view)
+                except Exception as e:
+                    print(f"Error al darse de baja de ClienteViewModel: {e}")
 
     # --- Métodos de Actualización (Llamados por el ViewModel) ---
 
@@ -212,44 +207,49 @@ class ClienteView:
         Actualiza la vista (Treeview y Formulario) cuando el
         ViewModel notifica un cambio de estado.
         """
-        # Actualizar el Treeview
-        self.tree.delete(*self.tree.get_children())
-        for cliente in self.view_model.clientes:
-            self.tree.insert("", "end", values=(
-                cliente.id,
-                cliente.nombre,
-                cliente.apellido,
-                cliente.dni,
-                cliente.licencia,
-                cliente.telefono,
-                cliente.email,
-                cliente.distrito
-            ))
-        
-        # Actualizar el Formulario
-        cliente = self.view_model.cliente_seleccionado
-        if cliente:
-            self.selected_id = cliente.id
-            self.nombre_var.set(cliente.nombre)
-            self.apellido_var.set(cliente.apellido)
-            self.dni_var.set(cliente.dni)
-            self.licencia_var.set(cliente.licencia)
-            self.telefono_var.set(cliente.telefono)
-            self.email_var.set(cliente.email)
-            self.direccion_var.set(cliente.direccion)
-            self.distrito_var.set(cliente.distrito)
-        else:
-            self.selected_id = None
-            self.nombre_var.set("")
-            self.apellido_var.set("")
-            self.dni_var.set("")
-            self.licencia_var.set("")
-            self.telefono_var.set("")
-            self.email_var.set("")
-            self.direccion_var.set("")
-            self.distrito_var.set("")
+        print("ClienteView: Recibida notificación, actualizando UI...")
+        try:
+            # Actualizar el Treeview
+            self.tree.delete(*self.tree.get_children())
+            if self.view_model.clientes:
+                for cliente in self.view_model.clientes:
+                    self.tree.insert("", "end", values=(
+                        cliente.id,
+                        cliente.nombre,
+                        cliente.apellido,
+                        cliente.dni,
+                        cliente.licencia,
+                        cliente.telefono or "",
+                        cliente.email or "",
+                        cliente.distrito or ""
+                    ))
             
-            # Limpiar selección del tree
-            for item in self.tree.selection():
-                self.tree.selection_remove(item)
+            # Actualizar el Formulario
+            cliente = self.view_model.cliente_seleccionado
+            if cliente:
+                self.selected_id = cliente.id
+                self.nombre_var.set(cliente.nombre)
+                self.apellido_var.set(cliente.apellido)
+                self.dni_var.set(cliente.dni)
+                self.licencia_var.set(cliente.licencia)
+                self.telefono_var.set(cliente.telefono or "")
+                self.email_var.set(cliente.email or "")
+                self.direccion_var.set(cliente.direccion or "")
+                self.distrito_var.set(cliente.distrito or "")
+            else:
+                self.selected_id = None
+                self.nombre_var.set("")
+                self.apellido_var.set("")
+                self.dni_var.set("")
+                self.licencia_var.set("")
+                self.telefono_var.set("")
+                self.email_var.set("")
+                self.direccion_var.set("")
+                self.distrito_var.set("")
+                
+                for item in self.tree.selection():
+                    self.tree.selection_remove(item)
+            print("ClienteView: Actualización UI completada.")
+        except Exception as e:
+            print(f"Error fatal durante ClienteView.update_view: {e}")
 
