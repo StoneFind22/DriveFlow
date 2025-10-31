@@ -6,3 +6,4 @@ pycache/
 *.pyo
 *.pyd
 .env
+vehicle_images/
